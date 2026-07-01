@@ -9,7 +9,7 @@ berdasarkan NPM, opsi jawaban diacak ulang per NPM.
 Soal konsep ditulis manual; soal hitung dibangkitkan dan diverifikasi Python.
 """
 
-DURASI_UAS_MENIT = 7
+DURASI_UAS_MENIT = 15
 JUMLAH_SOAL_PER_MAHASISWA = 20
 JUMLAH_MAHASISWA = 49
 ACAK_OPSI = True
