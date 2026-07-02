@@ -63,26 +63,46 @@ def seed_dari_npm(npm):
     return int(h, 16) % (2 ** 32)
 
 
-def ambil_soal_uas(npm):
-    """
-    Mengambil paket soal unik untuk satu NPM.
-    - Memilih JUMLAH_SOAL_PER_MAHASISWA soal acak dari bank 250.
-    - Mengacak urutan opsi tiap soal (bila ACAK_OPSI True).
-    Struktur tiap item: {"q": teks, "opts": [(indeks_asli, teks_opsi), ...], "a_asli": indeks_benar}
-    """
-    rnd = random.Random(seed_dari_npm(npm))
-    idx = list(range(len(uas_soal.UAS_BANK)))
-    rnd.shuffle(idx)
-    pilih = idx[: uas_soal.JUMLAH_SOAL_PER_MAHASISWA]
+def _sig(q):
+    """Tanda tangan 'tipe soal': teks tanpa angka, agar soal yang hanya beda angka dianggap satu tipe."""
+    s = q.translate({ord(d): None for d in "0123456789"}).replace("Rp", "")
+    return " ".join(s.split())[:60]
 
+
+def _pilih_beragam(bank, npm):
+    """Pilih soal untuk satu NPM dengan variasi tipe: maksimal 1 soal per tipe/pola,
+    sehingga tidak ada tipe soal yang muncul berulang dalam satu lembar."""
+    jml = uas_soal.JUMLAH_SOAL_PER_MAHASISWA
+    rnd = random.Random(seed_dari_npm(npm))
+    idx = list(range(len(bank)))
+    rnd.shuffle(idx)
+    dipilih, sig_pakai = [], set()
+    for i in idx:                       # utama: satu per tipe
+        sg = _sig(bank[i]["q"])
+        if sg in sig_pakai:
+            continue
+        sig_pakai.add(sg); dipilih.append(i)
+        if len(dipilih) >= jml:
+            break
+    if len(dipilih) < jml:              # cadangan bila tipe kurang dari jml
+        for i in idx:
+            if i not in dipilih:
+                dipilih.append(i)
+                if len(dipilih) >= jml:
+                    break
     paket = []
-    for i in pilih:
-        q = uas_soal.UAS_BANK[i]
-        opts = list(enumerate(q["o"]))  # [(0,'A'),(1,'B'),...]
+    for i in dipilih:
+        q = bank[i]
+        opts = list(enumerate(q["o"]))
         if uas_soal.ACAK_OPSI:
             rnd.shuffle(opts)
         paket.append({"q": q["q"], "opts": opts, "a_asli": q["a"]})
     return paket
+
+
+def ambil_soal_uas(npm):
+    """Paket soal beragam untuk satu NPM (maksimal 1 soal per tipe)."""
+    return _pilih_beragam(uas_soal.UAS_BANK, npm)
 
 
 def suntik_anti_contek():
