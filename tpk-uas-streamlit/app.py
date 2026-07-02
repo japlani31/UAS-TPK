@@ -316,30 +316,31 @@ def _mesin_ujian(judul, jenis, durasi_menit, paket_fn):
     if not st.session_state.get(ns + "vt_reset"):
         components.html("<script>window.parent.__vtCount = 0;</script>", height=0)
         st.session_state[ns + "vt_reset"] = True
-    # Baca hitungan pindah tab terkini dari browser dan simpan
-    st.session_state[ns + "pindah_live"] = baca_pindah_tab()
     paket = st.session_state[ns + "paket"]
     durasi_detik = durasi_menit * 60
-    sisa = int(durasi_detik - (time.time() - st.session_state[ns + "start_ts"]))
 
-    # Waktu habis -> submit otomatis
-    if sisa <= 0:
-        _finalisasi(ns, jenis, otomatis=True)
-        st.rerun()
-
-    menit, detik = divmod(max(sisa, 0), 60)
-    warna = "red" if sisa <= 60 else ("orange" if sisa <= 120 else "green")
-    st.markdown(
-        f"<div style='position:sticky;top:0;background:#111;padding:8px 12px;border-radius:8px;"
-        f"z-index:999;text-align:center;font-size:20px;color:{warna};'>"
-        f"⏱️ Sisa waktu: <b>{menit:02d}:{detik:02d}</b></div>",
-        unsafe_allow_html=True,
-    )
+    # Timer + deteksi pindah tab dalam FRAGMENT: hanya panel ini yang menyegar
+    # tiap detik, sehingga form soal TIDAK ikut dirender ulang (mencegah tampil ganda).
+    @st.fragment(run_every=1.0)
+    def _panel_timer():
+        st.session_state[ns + "pindah_live"] = baca_pindah_tab()
+        sisa = int(durasi_detik - (time.time() - st.session_state[ns + "start_ts"]))
+        if sisa <= 0:
+            _finalisasi(ns, jenis, otomatis=True)
+            st.rerun()
+        menit, detik = divmod(max(sisa, 0), 60)
+        warna = "red" if sisa <= 60 else ("orange" if sisa <= 120 else "green")
+        st.markdown(
+            f"<div style='position:sticky;top:0;background:#111;padding:8px 12px;border-radius:8px;"
+            f"z-index:999;text-align:center;font-size:20px;color:{warna};'>"
+            f"⏱️ Sisa waktu: <b>{menit:02d}:{detik:02d}</b></div>",
+            unsafe_allow_html=True,
+        )
+        _p = st.session_state.get(ns + "pindah_live", 0)
+        if _p > 0:
+            st.warning(f"⚠️ Terdeteksi keluar dari halaman {_p} kali. Aktivitas ini tercatat dan dilaporkan ke dosen.")
+    _panel_timer()
     st.caption(f"Peserta: {st.session_state[ns+'nama']} · NPM {st.session_state[ns+'npm']}")
-    _pindah = st.session_state.get(ns + "pindah_live", 0)
-    if _pindah > 0:
-        st.warning(f"⚠️ Terdeteksi keluar dari halaman {_pindah} kali. Aktivitas ini tercatat dan dilaporkan ke dosen.")
-
     with st.form(ns + "form_ujian"):
         jawaban = {}
         for i, s in enumerate(paket):
@@ -356,9 +357,6 @@ def _mesin_ujian(judul, jenis, durasi_menit, paket_fn):
         _finalisasi(ns, jenis, otomatis=False)
         st.rerun()
 
-    # Rerun tiap detik untuk memperbarui timer & menegakkan batas waktu
-    time.sleep(1)
-    st.rerun()
 
 
 def _finalisasi(ns, jenis, otomatis):
